@@ -11,7 +11,7 @@ import { vaultSession } from '@zero/main/vault/session';
  * Formato de cada arquivo (`.enc`), idêntico em todos:
  *
  * ```
- * magic   6 B  "CLIB1"
+ * magic   5 B  "CLIB1"
  * iv     16 B  nonce da operação
  * tag    16 B  tag de autenticação
  * dado    n B  texto cifrado

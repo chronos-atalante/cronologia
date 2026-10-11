@@ -81,7 +81,14 @@ export default function DangerZone({
   const resetLibrary = async (): Promise<void> => {
     const result = await window.api.library.reset();
     if (!result.ok) {
-      notify(result.code === undefined ? m.common.notFound : m.vault.errors[result.code], 'error');
+      // `code` = o cofre recusou (falha fechada); sem `code` = shutil parcial,
+      // que precisa da contagem real em vez de um erro genérico.
+      if (result.code !== undefined) {
+        notify(m.vault.errors[result.code], 'error');
+        return;
+      }
+      notify(m.danger.resetPartial(result.shredded, result.failed), 'error');
+      onLibraryChanged();
       return;
     }
     notify(m.danger.libraryReset);

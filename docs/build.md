@@ -6,17 +6,27 @@ empacotado em `.deb` pelo electron-builder. Nada disso entra no git: `out/`,
 
 ## Comandos
 
-| Comando                 | O que faz                                                |
-| ----------------------- | -------------------------------------------------------- |
-| `npm ci`                | dependências (lockfile exato)                            |
-| `npm run dev`           | desenvolvimento com hot reload                           |
-| `npm run build`         | apaga `out/` e compila os três bundles                   |
-| `npm start`             | pré-visualiza o build (`electron-vite preview`)          |
-| `npm run dist`          | build + gera o `.deb` em `release/` (precisa `fakeroot`) |
-| `npm run dist:dir`      | idem, deixando a árvore descompactada (`--dir`)          |
-| `npm run check`         | typecheck + lint + formato + auditoria OSV               |
-| `npm test`              | suíte Vitest (`tests/`)                                  |
-| `npm run test:coverage` | suíte com cobertura em `coverage/` (limiar de 50%)       |
+| Comando                   | O que faz                                                    |
+| ------------------------- | ------------------------------------------------------------ |
+| `npm ci`                  | dependências (lockfile exato)                                |
+| `npm run dev`             | desenvolvimento com hot reload (log do Chromium no terminal) |
+| `npm run dev:inspect`     | `dev` + V8 inspector do processo main, porta 5858            |
+| `npm run dev:inspect-brk` | idem, pausando na primeira linha até anexar o depurador      |
+| `npm run build`           | apaga `out/` e compila os três bundles                       |
+| `npm start`               | pré-visualiza o build (`electron-vite preview`)              |
+| `npm run dist`            | build + gera o `.deb` em `release/` (precisa `fakeroot`)     |
+| `npm run dist:dir`        | idem, deixando a árvore descompactada (`--dir`)              |
+| `npm run check`           | typecheck + lint + formato + auditoria OSV                   |
+| `npm test`                | suíte Vitest (`tests/`)                                      |
+| `npm run test:coverage`   | suíte com cobertura em `coverage/` (limiar de 50%)           |
+
+`ELECTRON_ENABLE_LOGGING=1` entra em todos os scripts de `dev`: é o que faz o
+Chromium (GPU, rede, sandbox) escrever no terminal junto com o
+`console.warn`/`console.error` do app. Já o `--inspect` **não** pode funcionar
+no binário instalado — o fuse `enableNodeCliInspectArguments` está em `false`
+(`package.json` → `build.electronFuses`) para que o usuário final não abra um
+depurador no processo que tem a chave-mestra em memória. Uso prático em
+[`testes.md`](testes.md) § "Depuração".
 
 Pré-requisitos: Node 24 + npm 11 e `fakeroot` no Linux para o `dist`. O binário
 `bin/osv-scanner` (usado por `security:audit`) não é versionado; localmente

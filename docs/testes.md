@@ -2,7 +2,7 @@
 
 Suíte em Vitest com ambiente `jsdom` único (`vitest.config.mts`): o renderer e
 também o processo main rodam em `jsdom`, com o `electron` trocado pelo stub de
-`tests/mocks/electron.ts`. São **33 arquivos** e **365 testes**; a duração
+`tests/mocks/electron.ts`. São **37 arquivos** e **428 testes**; a duração
 gira em torno de 2 minutos porque os testes de backup cifram de verdade com
 scrypt `N=2^17` (~128 MiB por derivação), enquanto o Argon2id do cofre roda
 com o KDF barato dos testes (16 MiB).
@@ -114,7 +114,7 @@ auditoria OSV. Rode os dois antes de concluir qualquer mudança.
 
 `vitest.config.mts` mede `src/**/*.{ts,tsx}` com o provedor v8 (relatórios em
 texto e HTML em `coverage/`) e exige **50%** de linhas, instruções, funções e
-ramos. Estado atual na 1.9.0 (424 testes em 37 arquivos):
+ramos. Estado atual na 1.9.1 (428 testes em 37 arquivos):
 
 | Métrica    | Global | `src/main/vault/*` |
 | ---------- | ------ | ------------------ |
@@ -134,6 +134,72 @@ arquivo e sai com "No test files found".
 Os `*.ts` de tipo puro e o `index.html` ficam de fora (`global.d.ts`,
 `src/renderer/index.html`); os bundles de idioma não traduzidos contam pouco
 porque a paridade é garantida por teste estrutural, não por execução.
+
+## Depuração
+
+A suíte cobre comportamento; quando o bug é de **runtime**, o caminho é outro.
+Três frentes, todas só em desenvolvimento — nada disto existe no `.deb`
+instalado.
+
+### Renderer: React DevTools
+
+Para inspecionar props/state e medir re-renders:
+
+```bash
+npm run dev          # em um terminal
+npx react-devtools   # em outro
+```
+
+O `npx` baixa o pacote na hora, então **não** vira dependência do projeto (e
+não entra no `package-lock.json` nem no `.deb`). A extensão do React DevTools
+para navegador **não** funciona aqui: o app é servido por `cronologia://`, e
+conectar a extensão exigiria `NODE_ENV=development` + a porta do backend.
+
+O Profiler é a parte que compensa: `SettingsModal` e `App` re-renderizam a
+árvore inteira quando um único card muda. Se o Profiler acusar commits
+desnecessários, o conserto é `useMemo`/`useCallback` no ponto, não
+desabilitar a checagem.
+
+O DevTools do Chromium (F11 no app) continua disponível para rede, CSP,
+console e Performance — ele cobre o renderer, **não** o processo main.
+
+### Processo main: V8 inspector
+
+O DevTools do Chromium não alcança o main. Para isso:
+
+```bash
+npm run dev:inspect      # abre e segue rodando; porta 5858
+npm run dev:inspect-brk  # para na primeira linha, esperando o depurador
+```
+
+Ambos passam `--inspect[=-brk]=5858` ao binário do Electron via
+`electron-vite`, com o mesmo cofre de sandbox (`.dev-vault`) e
+`ELECTRON_ENABLE_LOGGING=1`. Para anexar: `chrome://inspect` em um Chromium
+com "Configure…" apontando para `localhost:5858`, ou a porta `5858` na sua IDE.
+
+Vale para `library.ts`, `store-crypto.ts`, `vault/*`, `drive/*` e para o
+`registerIpc` — inclusive para caçar um handler que devolve a promise errada.
+
+> **Não funciona no app empacotado, por desenho.** O fuse
+> `enableNodeCliInspectArguments` está em `false` (`package.json` →
+> `build.electronFuses`): o binário instalado recusa `--inspect` para que o
+> usuário final não consiga abrir um depurador no processo que tem a chave
+> mestra em memória. Se precisar depurar o pacote instalado, faça-o no
+> `electron-vite dev`.
+
+### Logs do Chromium
+
+`npm run dev` já exporta `ELECTRON_ENABLE_LOGGING=1`, então o que o Chromium
+escreve (GPU, rede, sandbox, vídeo) aparece no terminal junto com o
+`console.warn`/`console.error` do app. O lint libera só esses dois levels de
+console de propósito: log de depuração permanente vira lixo na saída do
+usuário. Para depurar ponto a ponto, use breakpoint, não `console.log`.
+
+### Heap snapshot: o que sobra depois de destruir o cofre
+
+O Cryptographic Erase depende de a chave-mestra **não sobreviver** em memória.
+Isso é verificável, e o procedimento está em [`cofre.md`](cofre.md) §
+"Provar o Cryptographic Erase com heap snapshot" e no `SECURITY.md`.
 
 ## Ver também
 

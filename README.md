@@ -129,20 +129,27 @@ qualquer outro aplicativo que passe a falhar depois que `/tmp` for apagada.
 
 ## Comandos de desenvolvimento
 
-| Comando                  | O que faz                                          |
-| ------------------------ | -------------------------------------------------- |
-| `npm run dev`            | Sobe o app em modo desenvolvimento (hot reload)    |
-| `npm run typecheck`      | `tsc --noEmit` nos projetos node, web e testes     |
-| `npm run lint`           | ESLint rigoroso (type-aware) em todo o repositório |
-| `npm run lint:fix`       | ESLint com correção automática                     |
-| `npm run format`         | Formata tudo com Prettier                          |
-| `npm run format:check`   | Verifica a formatação (CI)                         |
-| `npm test`               | Roda a suíte Vitest (`tests/**/*.test.{ts,tsx}`)   |
-| `npm run security:audit` | Auditoria de vulnerabilidades via OSV Scanner      |
-| `npm run check`          | `typecheck` + `lint` + `format:check` + auditoria  |
-| `npm run clean`          | Apaga `out/` (build anterior)                      |
-| `npm run build`          | Limpa + compila main/preload/renderer              |
-| `npm run dist`           | Build + gera o `.deb` com electron-builder         |
+| Comando                   | O que faz                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `npm run dev`             | Sobe o app em modo desenvolvimento (hot reload), com log do Chromium no terminal |
+| `npm run dev:inspect`     | Igual ao `dev`, com o V8 inspector do processo main na porta 5858                |
+| `npm run dev:inspect-brk` | Igual ao `dev:inspect`, mas pausa na primeira linha esperando o depurador        |
+| `npm run typecheck`       | `tsc --noEmit` nos projetos node, web e testes                                   |
+| `npm run lint`            | ESLint rigoroso (type-aware) em todo o repositório                               |
+| `npm run lint:fix`        | ESLint com correção automática                                                   |
+| `npm run format`          | Formata tudo com Prettier                                                        |
+| `npm run format:check`    | Verifica a formatação (CI)                                                       |
+| `npm test`                | Roda a suíte Vitest (`tests/**/*.test.{ts,tsx}`)                                 |
+| `npm run security:audit`  | Auditoria de vulnerabilidades via OSV Scanner                                    |
+| `npm run check`           | `typecheck` + `lint` + `format:check` + auditoria                                |
+| `npm run clean`           | Apaga `out/` (build anterior)                                                    |
+| `npm run build`           | Limpa + compila main/preload/renderer                                            |
+| `npm run dist`            | Build + gera o `.deb` com electron-builder                                       |
+
+O `dev:inspect` não existe no app instalado: o fuse
+`enableNodeCliInspectArguments` está desligado, para que o usuário não abra um
+depurador no processo que tem a chave-mestra em memória. Detalhes de depuração
+em [`docs/testes.md`](docs/testes.md) § "Depuração".
 
 ---
 
@@ -446,9 +453,11 @@ Detalhes da configuração (campo `build` do `package.json`):
   (`build/apparmor-profile`, pulado onde a base é antiga) e cuida do `chrome-sandbox`;
   o `postrm` (`deb.afterRemove`) descarrega o perfil e limpa o `update-alternatives`
 - Slim via `afterPack` (`build/after-pack.cjs`): remove do pacote locales não usados
-  (mantém `pt-BR`/`pt-PT`/`en-US`), SwiftShader/Vulkan e `libffmpeg` (o app é DOM/CSS
+  (mantém `pt-BR`/`pt-PT`/`en-US`), SwiftShader e Vulkan (o app é DOM/CSS
   estático, sem WebGL nem mídia), o que economiza ~5 MB no `.deb`, margem contra o
-  limite de 100 MiB por arquivo do GitHub
+  limite de 100 MiB por arquivo do GitHub. **Nunca** remove `libffmpeg.so`: o binário
+  do Electron declara `DT_NEEDED` nele e, sem o arquivo, o app morre no `exec`
+  (foi o que quebrou a v1.1.1)
 
 ---
 

@@ -113,14 +113,25 @@ inalterada. Um `id` fora da régua (`^[A-Za-z0-9_-]{1,64}$`) falha com
 `covers/`. As pastas continuam prontas para o próximo uso. Não toca no cofre
 nem no backup na nuvem.
 
+A contagem é **real**: o main propaga o que o `shred` de fato sobrescreveu, e
+não um "apagado" genérico.
+
 ```ts
 interface LibraryReset {
   ok: boolean;
-  shredded: number;
-  failed: number;
-  code?: VaultErrorCode; // presente quando ok === false
+  shredded: number; // arquivos sobrescritos e apagados
+  failed: number; // arquivos que não puderam ser sobrescritos/apagados
+  code?: VaultErrorCode; // presente quando o cofre recusou (não tocou no acervo)
 }
 ```
+
+Dois caminhos de `ok: false`, e a interface os trata diferente:
+
+- **com `code`**: o cofre recusou (`vaultLocked`, `vaultDestroyed`), o acervo
+  não foi tocado;
+- **sem `code`**: **falha parcial**, com `failed > 0`. Sobrou resíduo no disco,
+  e a contagem é mostrada (`danger.resetPartial`). A biblioteca local ainda é
+  recarregada, porque o que foi apagado foi apagado.
 
 ### `pickCover() → Promise<string | null>`
 

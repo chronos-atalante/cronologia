@@ -5,6 +5,7 @@ import type { Work } from '@zero/types';
 import { currentMessages } from '@zero/main/i18n';
 import { cacheDir, configDir, coversDir, dataDir, userDataDir } from '@zero/main/paths';
 import { shredDirectory, shredFile } from '@zero/main/shred';
+import type { ShredResult } from '@zero/main/shred';
 import {
   coverFileName,
   plainCoverName,
@@ -275,12 +276,22 @@ export function restoreLibrary(works: Work[]): Work[] {
  * Apaga o acervo inteiro sobrescrevendo: a biblioteca, a pasta de capas e o
  * que sobrou. Exige cofre aberto (sem chave não há o que sobrescrever com
  * segurança).
+ *
+ * Devolve a contagem **real** do que foi sobrescrito e do que falhou. Um
+ * "apagado" em falso é pior que um erro: o chamador precisa poder dizer que
+ * sobrou resíduo no disco em vez de anunciar uma limpeza que não aconteceu.
+ * Biblioteca ausente não conta como falha (instalação nova, `0` e `0`).
  */
-export function resetLibrary(): void {
+export function resetLibrary(): ShredResult {
   requireVault();
-  shredFile(libraryPath());
-  shredDirectory(coversDir());
+  const result: ShredResult = { shredded: 0, failed: 0 };
+  if (shredFile(libraryPath())) result.shredded += 1;
+  else if (libraryExists()) result.failed += 1;
+  const covers = shredDirectory(coversDir());
+  result.shredded += covers.shredded;
+  result.failed += covers.failed;
   coversDir();
+  return result;
 }
 
 export interface BackupFile {

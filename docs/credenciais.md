@@ -74,13 +74,36 @@ back-end é quem recusa (`vaultWeakPassword`). A trava exponencial (10 s até
 - O app nunca quebra por causa disso: a UI abre o cria-cofre e o fluxo continua
   depois do desbloqueio.
 
-## Legado descartado
+## Legado: sem migração, mas varrido no boot
 
-Instalações antigas que ainda tenham `settings.json` com `enc:`/keyring,
-`dropbox-tokens.json` com `0600` ou `~/.config/cronologia/.vault`
-continuam **intocadas e ignoradas**: o app não lê, não copia e não apaga nada
-de lá. O primeiro salvamento regrava o `settings.json` só com o idioma
-(sem segredo em claro). Não existe migração e não é preciso limpar manualmente.
+**Não existe migração.** Nada é importado de instalações antigas: o app não lê
+o segredo antigo para colocá-lo no cofre. O que ele faz é **apagar o que ficou
+em claro**, para que atualizar a instalação não deixe segredo nem acervo
+legível no disco.
+
+A varredura roda no boot (`runDiskCleanup`, `src/main/cleanup.ts`), antes de
+qualquer handler IPC, e é idempotente e silenciosa (não encontrar nada não é
+erro):
+
+| O que é varrido                                | Onde                                | Como                                             |
+| ---------------------------------------------- | ----------------------------------- | ------------------------------------------------ |
+| Segredo `dropbox.tokens` / `drive-tokens.json` | `~/.config/cronologia/`             | shred + remove                                   |
+| Cofre antigo em claro                          | `~/.config/cronologia/.vault/`      | shred de cada arquivo, depois `rmdir`            |
+| `settings.json` com o campo legado `enc:`      | `~/.config/cronologia/`             | shred + remove (só quando o campo está presente) |
+| Acervo em claro `library.json`                 | `~/.local/share/cronologia/`        | shred + remove                                   |
+| Capas sem o sufixo `.enc`                      | `~/.local/share/cronologia/covers/` | shred + remove                                   |
+
+Duas ressalvas importantes:
+
+- a varredura decide **por existência de arquivo**, nunca pelo conteúdo do
+  segredo: o segredo legado não é lido, é sobrescrito;
+- o `settings.json` vivo (só com `language`) e a pasta `.vault` nova em
+  `/var/lib/.cronologia` estão fora da lista e **nunca** são tocados — um
+  arquivo sem o campo `enc:` não é apagado, porque apagá-lo derrubaria o idioma
+  do usuário.
+
+O primeiro salvamento posterior regrava o `settings.json` só com o idioma (sem
+segredo em claro). Não é preciso limpar nada manualmente.
 
 ## Ver também
 
