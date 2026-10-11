@@ -3,7 +3,7 @@ import http from 'http';
 import os from 'os';
 import path from 'path';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import type { AppSettings, Work } from '@zero/types';
+import type { AppSettings, LibraryReset, Work } from '@zero/types';
 import {
   configDir,
   coversDir,
@@ -13,6 +13,7 @@ import {
   writeCoverFile,
 } from '@zero/main/library';
 import { setSecret, vaultSession } from '@zero/main/vault';
+import { destroyVault } from '@zero/main/vault';
 import { VAULT_SECRET } from '@zero/main/vault/secrets';
 import { EMBEDDED_APP_KEY } from '@zero/main/drive/constants';
 import { makeDraft, makeWork } from '../helpers/fixtures.ts';
@@ -277,6 +278,27 @@ describe('handlers de biblioteca', () => {
     const deleted = invoke('library:delete', 'nova') as Work[];
     expect(deleted).toHaveLength(1);
     expect(deleted[0]?.id).not.toBe('nova');
+  });
+
+  it('library:reset devolve a contagem real do shred, sem "apagado" em falso', () => {
+    const result = invoke('library:reset') as LibraryReset;
+
+    // 1 obra gravada = `library.enc` sobrescrito; a pasta de capas está vazia.
+    expect(result).toEqual({ ok: true, shredded: 1, failed: 0 });
+
+    // Sem acervo gravado, zerar de novo não inventa sucesso nem falha.
+    expect(invoke('library:reset')).toEqual({ ok: true, shredded: 0, failed: 0 });
+  });
+
+  it('library:reset com cofre fechado recusa com código e não inventa contagem', async () => {
+    destroyVault();
+
+    const result = invoke('library:reset') as LibraryReset;
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('vaultLocked');
+
+    await openTestVault();
   });
 });
 

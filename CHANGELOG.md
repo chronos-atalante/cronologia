@@ -49,19 +49,63 @@ em português do Brasil.
   `jsonfile.ts` já fazia: um temporário órfão de um crash herdava a
   permissão antiga.
 
+### Ferramentas de depuração
+
+- `npm run dev:inspect` e `npm run dev:inspect-brk`: V8 inspector do **processo
+  main** na porta 5858, pelo `--inspect`/`--inspect-brk` que o `electron-vite`
+  repassa ao Electron. O DevTools do Chromium (F11) só cobre o renderer, e até
+  agora não havia atalho para o main. Continua **off no binário instalado**: o
+  fuse `enableNodeCliInspectArguments` segue desligado, para que o usuário não
+  abra um depurador no processo que tem a chave-mestra em memória.
+- `ELECTRON_ENABLE_LOGGING=1` em todos os scripts de `dev`: o que o Chromium
+  escreve (GPU, rede, sandbox) passa a aparecer no terminal junto com o
+  `console.warn`/`console.error` que o lint permite.
+- Procedimento documentado para **conferir o Cryptographic Erase com heap
+  snapshot** (`docs/cofre.md`), com snapshot de controle obrigatório: um "não
+  achei a chave" só vale se a mesma busca acha no snapshot de antes da
+  destruição. É a única forma de verificar a garantia, já que um teste de
+  unidade passa com a chave intacta no heap.
+- `npx react-devtools` para o renderer, com nota de que a extensão de browser
+  não funciona (o app é servido por `cronologia://`) e de que o Profiler é o
+  que compensa em `SettingsModal`/`App`.
+
 ### Corrigido
 
-- documentação que descrevia o estado anterior: `SECURITY.md` com versões
-  suportadas em `1.5.x` (o app está em `1.8.x`) e citando o
-  `dropbox-tokens.json`, removido na 1.8; `docs/build.md` com link para um
-  `Doc/ROADMAP.md` inexistente; `docs/dropbox.md` citando um
-  `drive-tokens.json` que nunca existiu.
+- **`library:reset` não anunciava mais um apagado que não aconteceu**: o handler
+  devolvia `shredded: 0, failed: 0` fixo, descartando o retorno real do `shred`
+  (que já contava corretamente). Agora `resetLibrary()` propaga a contagem e a
+  interface distingue os dois caminhos de falha: cofre recusou (com `code`) e
+  falha parcial, que sobrou resíduo no disco (sem `code`, com a contagem).
+- **`docs/openapi.yaml` estava 9 endpoints atrás**: faltavam `library:reset`,
+  `drive:purge` e todo o grupo `vault:*`, além dos esquemas `LibraryReset`,
+  `PurgeResult`, `VaultStatus` e `VaultResult`. A versão da especificação (1.4.0)
+  foi alinhada à do app, e o esquema `AppSettings` deixou de declarar um
+  `driveClientSecret` que o código nunca teve (o app é PKCE, sem secret).
+- documentação que descrevia o estado anterior: `docs/credenciais.md` e
+  `docs/cofre.md` diziam que o legado em claro era "intocado e ignorado", quando
+  o boot o sobrescreve e apaga (`src/main/cleanup.ts`); `SECURITY.md` com a linha
+  suportada em `1.8.x`, o `1.0.0` de um placeholder e `npm run dist` como forma
+  de atualizar (é comando de desenvolvimento; o canal é o repo APT), sem
+  endereço de reporte acionável; `README.md` dizendo que o slim do pacote
+  removia `libffmpeg`, que é exatamente o que quebrou a v1.1.1 e o que
+  `build/after-pack.cjs` proíbe; `docs/cofre.md` com o cabeçalho dos `.enc` em
+  38 bytes quando são 37 (`src/main/store-crypto.ts` tinha o mesmo erro no
+  comentário).
+- `Landing-page`: `release-info.json` estava travado em `1.8.0` enquanto o app
+  está em `1.9.1`, então qualquer build da landing sem rede servia o download de
+  uma versão antiga — a verificação de 4 vias da doc de distribuição falhava.
 
 **Migração**: não existe. Sem cofre, o app pede a criação de um novo; o acervo
 antigo em texto claro não é lido nem copiado, e quem apagar o arquivo
 `library.json` antigo depois de criar o cofre perde o histórico local (o backup
 na nuvem continua sendo a fonte). A 1.9 é a primeira versão que **exige** senha
 mestra para abrir o app.
+
+**O que a varredura de legado apaga no boot**: `settings.json` com `enc:`,
+`dropbox-tokens.json`, `drive-tokens.json`, o cofre antigo em
+`~/.config/cronologia/.vault`, o acervo `library.json` em claro e as capas sem
+`.enc`. A decisão é por existência de arquivo, nunca pelo conteúdo do segredo, e
+o `settings.json` vivo (só com `language`) nunca é tocado.
 
 ## [1.8.0] - 2026-10-10
 

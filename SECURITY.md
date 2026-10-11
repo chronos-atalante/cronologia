@@ -8,19 +8,23 @@
 
 | Versão | Suporte             |
 | ------ | ------------------- |
-| 1.8.x  | ✅ Correções ativas |
+| 1.9.x  | ✅ Correções ativas |
 
-Versões anteriores à linha suportada não recebem correções; atualize pelo `.deb` mais
-recente (`npm run dist` gera em `release/`).
+Esta linha é a versão maior/menor atual do app (`version` em `package.json`) e
+deve ser revisada a cada bump. Versões anteriores à linha suportada não recebem
+correções; atualize pelo repo APT (`apt install cronologia`, ou
+`apt upgrade cronologia`), que aponta para a Release mais recente. Detalhes em
+[`docs/distribuicao-apt.md`](docs/distribuicao-apt.md).
 
 ## Como reportar uma vulnerabilidade
 
 **Não abra issue pública.** Descreva a falha em sigilo para quem mantém o
-projeto (ver `author` em `package.json`), incluindo se possível:
+projeto, em `chronos.biblioteca@proton.me` (mesmo endereço de `maintainer` em
+`package.json`), incluindo se possível:
 
 - o que acontece e o impacto estimado;
 - passo a passo para reproduzir;
-- versão do app (`1.0.0` em `package.json`) e do sistema.
+- versão do app (campo `version` de `package.json`) e do sistema.
 
 Nos comprometemos a confirmar o recebimento, investigar e, confirmado o
 problema, publicar a correção com crédito a quem reportou (salvo pedido em
@@ -37,7 +41,16 @@ contrário).
 - **Cryptographic Erase**: destruir o cofre mata a chave-mestra, e com ela todo
   `.enc` vira ruído irrecuperável sem sobrescrever o acervo inteiro. Por isso o
   acervo não mora dentro do `vault.zkv`, e a destruição é instantânea mesmo com
-  biblioteca grande.
+  biblioteca grande. A afirmação é **sobre a chave, não sobre memória**: o
+  processo continua com dado derivado (blobs do Argon2id, textos já decifrados
+  exibidos, `Buffer` liberado e não coletado). É verificável, e o procedimento
+  está em [`docs/cofre.md`](docs/cofre.md) § "Provar o Cryptographic Erase com
+  heap snapshot", com snapshot de controle obrigatório — um "não achei a chave"
+  só vale se a mesma busca acha no snapshot de antes da destruição. O vetor
+  real de ataque ao modelo é o **dump de memória**, não o `vault.zkv`: por isso
+  `--inspect` está desligado no binário instalado (fuse
+  `enableNodeCliInspectArguments: false`) e o V8 inspector só existe no
+  `npm run dev:inspect` de desenvolvimento.
 - **Falha fechada na leitura do acervo**: arquivo cifrado ilegível falha com
   `libraryTampered`, **nunca** devolve lista vazia. Devolver `[]` faria o
   próximo salvamento sobrescrever um acervo que existe.
@@ -177,6 +190,12 @@ contra:
   isso.
 - **Quem controla a nuvem**: o Dropbox vê apenas blobs cifrados do backup
   (senha separada da mestra), mas o cofre não muda isso.
+- **Quem tira dump do processo**: `/proc/<pid>/mem`, `ptrace` ou o depurador do
+  V8 capturam a chave-mestra enquanto o app está desbloqueado, e um dump feito
+  antes da destruição sobrevive a ela. Fora do binário instalado o inspector é
+  desligado por fuse, mas isso não impede um atacante local na sessão do
+  usuário — mesma classe do item acima. É o motivo de `vault:destroy` zerar a
+  chave antes de tocar o disco, e não o inverso.
 
 ## Riscos aceitos (com justificativa)
 

@@ -307,6 +307,8 @@ export const en: Messages = {
     confirmAction: 'Confirm',
     irreversible: 'This action cannot be undone.',
     libraryReset: 'Library deleted.',
+    resetPartial: (shredded: number, failed: number): string =>
+      `${shredded} file(s) overwritten and deleted, but ${failed} could not be deleted. Leftovers may remain on disk; restart the app and try again.`,
     vaultDestroyed: 'Vault destroyed. Create a new one to continue.',
     cloudPurged: 'Backup deleted from the cloud.',
     libraryLocked: 'Unlock the vault to delete the library.',

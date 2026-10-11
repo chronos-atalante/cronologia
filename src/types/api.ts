@@ -44,7 +44,11 @@ export interface ElectronApi {
   };
 }
 
-/** Contagem real do que foi sobrescrito e do que falhou. */
+/**
+ * Contagem real do que foi sobrescrito e do que falhou. `ok: false` sem
+ * `code` significa **falha parcial**: parte foi apagada, parte sobrou no
+ * disco. Com `code` é a recusa do cofre, que não chegou a tocar no acervo.
+ */
 export interface LibraryReset {
   ok: boolean;
   shredded: number;

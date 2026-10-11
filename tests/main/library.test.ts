@@ -442,13 +442,37 @@ describe('acervo cifrado', () => {
     writeCoversDirFile('b.png');
     expect(fs.existsSync(libraryFile())).toBe(true);
 
-    resetLibrary();
+    const result = resetLibrary();
 
+    // A contagem é real: 1 biblioteca + 2 capas sobrescritas, nada pendente.
+    expect(result).toEqual({ shredded: 3, failed: 0 });
     expect(fs.existsSync(libraryFile())).toBe(false);
     expect(fs.readdirSync(coversDir())).toEqual([]);
     // A pasta continua utilizável para o próximo uso.
     expect(fs.statSync(coversDir()).isDirectory()).toBe(true);
     expect(loadLibrary()).toEqual([]);
+  });
+
+  it('resetLibrary conta como pendente o acervo que não pôde ser sobrescrito', () => {
+    saveLibrary([makeWork()]);
+    writeCoversDirFile('a.png');
+    // Subdiretório na pasta de capas: `rmdir` não esvazia, então o arquivo
+    // dentro dele escapa do shred e precisa aparecer em `failed`.
+    fs.mkdirSync(path.join(coversDir(), 'sub'));
+
+    const result = resetLibrary();
+
+    expect(result.failed).toBeGreaterThan(0);
+    expect(result.shredded + result.failed).toBeGreaterThan(0);
+    expect(fs.existsSync(libraryFile())).toBe(false);
+  });
+
+  it('resetLibrary sem acervo gravado não conta nada como falha', () => {
+    // Instalação nova: não há `library.enc` para sobrescrever nem capas.
+    const result = resetLibrary();
+
+    expect(result).toEqual({ shredded: 0, failed: 0 });
+    expect(fs.statSync(coversDir()).isDirectory()).toBe(true);
   });
 
   it('a capa em claro de versão anterior é sobrescrita na limpeza de órfãos', () => {

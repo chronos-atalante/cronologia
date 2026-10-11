@@ -86,7 +86,18 @@ Camadas (diagrama no `README.md`, seção Arquitetura; detalhe em
   50% por métrica. Comportamento novo vem com teste.
 - `npm run dev` / `build` / `dist`: desenvolvimento, build, `.deb`. O `dev`
   já exporta `CRONOLOGIA_VAULT_DIR` para a pasta `.dev-vault` (cofre no sandbox,
-  sem tocar em `/var/lib` nem disparar `pkexec`).
+  sem tocar em `/var/lib` nem disparar `pkexec`) e `ELECTRON_ENABLE_LOGGING=1`
+  (log do Chromium no terminal).
+- `npm run dev:inspect` / `dev:inspect-brk`: o mesmo `dev` com o V8 inspector do
+  **processo main** na porta 5858 (`--inspect` e `--inspect-brk` do
+  `electron-vite`). O DevTools do Chromium (F11) só cobre o renderer. Funciona
+  só no dev: o fuse `enableNodeCliInspectArguments` está desligado de propósito
+  no binário instalado. Para o renderer, `npx react-devtools` (global, sem
+  dependência do projeto) traz o Profiler. Guia em `docs/testes.md` §
+  "Depuração".
+- Heap snapshot para conferir o Cryptographic Erase (com snapshot de controle
+  obrigatório): procedimento em `docs/cofre.md` § "Provar o Cryptographic Erase
+  com heap snapshot".
 - `node --import ./src/node.loader.ts <arquivo.ts>`: roda `.ts` direto com
   os aliases `@zero/*`.
 - Capture o exit do próprio npm (`npm run check; echo $?`), não o código de

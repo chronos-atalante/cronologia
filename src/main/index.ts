@@ -213,8 +213,10 @@ function registerIpc(): void {
   ipcMain.handle('library:reset', (event): LibraryReset => {
     assertAppFrame(event);
     try {
-      resetLibrary();
-      return { ok: true, shredded: 0, failed: 0 };
+      const { shredded, failed } = resetLibrary();
+      // Falha parcial é contada, não enfeitada: sobrou resíduo no disco e a
+      // interface precisa poder dizer isso.
+      return failed > 0 ? { ok: false, shredded, failed } : { ok: true, shredded, failed };
     } catch (error) {
       if (isVaultError(error)) {
         return { ok: false, shredded: 0, failed: 0, code: error.code };

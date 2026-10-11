@@ -23,7 +23,7 @@ HKDF-SHA512 (`src/main/store-crypto.ts`). Duas propriedades vêm desse desenho:
   `.enc` vira ruído irrecuperável, sem precisar sobrescrever o acervo inteiro;
 - os arquivos `.enc` não guardam chave, salt nem KDF: sozinhos são bytes inúteis.
 
-Formato de cada `.enc` (cabeçalho de 38 bytes, big-endian):
+Formato de cada `.enc` (cabeçalho de 37 bytes, big-endian):
 
 | Offset | Tamanho | Campo                            |
 | ------ | ------- | -------------------------------- |
@@ -172,24 +172,99 @@ Detalhes que valem saber:
   chave; onde não é mais (o `.enc` sem chave), o shred é o melhor esforço
   disponível.
 
+### Provar o Cryptographic Erase com heap snapshot
+
+A garantia de que destruir o cofre mata o acervo depende inteiramente de uma
+afirmação sobre memória: **a chave-mestra não sobreviver depois do wipe**. Isso
+não é teste de unidade — um teste passa com a chave intacta no heap e não diz
+nada sobre o erase. A verificação honesta é um heap snapshot, e ela tem um
+controle obrigatório.
+
+> Um snapshot "não achei a chave" **não é evidência de nada** se a mesma busca
+> também não a acha no snapshot de antes da destruição. O controle positivo é
+> o que dá valor ao negativo.
+
+Procedimento, todo em desenvolvimento (`npm run dev`, nunca no `.deb`):
+
+1. `npm run dev:inspect` e anexe o depurador na porta `5858`.
+2. Crie o cofre, desbloqueie e **use o app** (ler e salvar uma obra). Sem uso,
+   a chave pode não ter Pages Materializadas e o teste não prova nada.
+3. **Snapshot de controle (chave presente).** No painel do depurador do main:
+   **Memory → Take heap snapshot**, salve como `/tmp/controle.heapsnapshot`.
+4. **Obtenha os bytes da chave.** Ponha um breakpoint em
+   `src/main/vault/session.ts`, na linha do `fill(0)` dentro de `wipe()`: ele
+   dispara tanto no auto-lock quanto na destruição. Com o processo pausado
+   **naquela linha**, o Console do depurador devolve os bytes reais, ainda não
+   zerados:
+
+   ```js
+   this.masterKey.toString('hex');
+   Array.from(this.masterKey).join(' '); // como o snapshot exibe um typed array
+   ```
+
+   Guarde a segunda forma. O snapshot guarda os elementos de typed array como
+   decimais separados por espaço; essa é a string a buscar.
+
+5. **Destrua** pela zona de risco (palavra `DESTRUIR`), que chama `destroyVault`
+   → `wipe`. O breakpoint da etapa 4 pausa: **retome** (_Resume_) para a
+   destruição completar.
+6. **Snapshot pós-destruição.** **Memory → Take heap snapshot**, salve como
+   `/tmp/depois.heapsnapshot`.
+7. **Valide o método antes de concluir.** Abra `/tmp/controle.heapsnapshot` no
+   DevTools (`Ctrl+Shift+F` na aba _Memory_) e procure os bytes da etapa 4. A
+   busca **tem** de encontrar. Se não encontrar nem no controle, o formato está
+   errado ou a chave não foi materializada — volte à etapa 2.
+8. **Aí sim** procure a mesma string em `/tmp/depois.heapsnapshot`.
+
+O que esperar, e o que **não** esperar:
+
+- **esperado:** os bytes originais da chave-mestra não aparecem mais;
+- **não é falha:** o snapshot mostra memória do processo com dado derivado
+  (blobs do Argon2id, textos já decifrados exibidos na tela, `Buffer` antigo
+  liberado mas não coletado, cópias intermediárias dentro do WebCrypto). Por
+  isso o Cryptographic Erase é uma garantia de **chave**, não de higiene de
+  memória;
+- **o limite da garantia:** ela vale enquanto ninguém tiver um **dump de
+  memória** do processo **e** a chave. Um dump feito _antes_ da destruição
+  preserva a chave — é por isso que `--inspect` está desligado no binário
+  instalado (fuse `enableNodeCliInspectArguments: false`) e que um dump é o
+  principal vetor de ataque ao modelo, não o `vault.zkv`.
+
+`v8.writeHeapSnapshot()` é a alternativa programática ao painel, mas cuidado:
+no Console do processo main o `require` pode não existir (o Electron é ESM
+nesse ponto), então use `await import('node:v8')`.
+
+Se o snapshot pós-destruição mostrar os bytes originais, isso é **achado de
+segurança**, não detalhe de documentação: registrar em `SECURITY.md` e corrigir
+antes de qualquer release.
+
 ## Comportamento fail-closed
 
 - Container ilegível/adulterado → `vaultTampered`; nenhum segredo é entregue.
 - Cofre fechado → `vaultLocked`; `loadSettings` devolve `''` e `loadState`
   zera os tokens (falha fechada, nunca exceção fora do domínio).
 - Pasta sem permissão → `vaultDirUnavailable`; caixinha do sistema em seguida
-  (ver acima) e, se recusada, `vaultAuthCancelled`.
-- Os canais IPC devolvem o envelope `VaultResult` com `code` + `retryInMs`
-  (tabela em [`api.md`](api.md) §6); o texto exibido é localizado no renderer.
+  (ver acima) e, se recusada, `vaultAuthCancelled`. A caixinha só aparece na
+  **criação** do cofre: gravar um segredo num cofre cuja pasta perdeu a
+  permissão falha direto com `vaultDirUnavailable`, sem diálogo.
+- Os canais `vault:create`/`unlock`/`destroy` devolvem o envelope `VaultResult`
+  com `code` + `retryInMs` (tabela em [`api.md`](api.md) §6) e o texto exibido
+  é localizado no renderer; `vault:status` e `vault:lock` devolvem `VaultStatus`
+  direto, e `settings:set` propaga como erro já localizado no main.
 
 ## Sem migração do legado
 
-Nada é copiado de instalações antigas. `settings.json` com `enc:`/keyring e
-`dropbox-tokens.json` com `0600` são **ignorados**: `loadSettings` lê só o
-`language` do disco, `loadState` lê só o cofre, e o primeiro salvamento
-regrava o arquivo só com o idioma (sem segredo em claro). O cofre antigo em
-`~/.config/cronologia/.vault` também é descartado: ele não é nem
-removido nem lido. Detalhe em [`credenciais.md`](credenciais.md).
+Nada é **importado** de instalações antigas: o cofre novo não herda segredo
+nenhum do antigo. Em troca, o app **apaga** o que ficou em claro, senão
+atualizar a instalação deixaria token e acervo legíveis no disco.
+
+`runDiskCleanup` roda no boot e sobrescreve (shred) e remove, por existência e
+sem nunca ler o conteúdo do segredo: `settings.json` com `enc:`/keyring,
+`dropbox-tokens.json`, `drive-tokens.json`, o cofre antigo em
+`~/.config/cronologia/.vault`, o acervo `library.json` em claro e as capas sem
+`.enc`. O `settings.json` vivo e a pasta `.vault` nova nunca são tocados.
+Lista completa em [`credenciais.md`](credenciais.md) ("Legado: sem migração,
+mas varrido no boot").
 
 ## Variáveis de ambiente (testes e dev)
 

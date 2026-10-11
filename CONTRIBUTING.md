@@ -15,15 +15,22 @@ npm run dev     # abre o app com hot reload
 
 ## 2. Scripts importantes
 
-| Comando                  | Quando usar                                                            |
-| ------------------------ | ---------------------------------------------------------------------- |
-| `npm run dev`            | desenvolver com recarregamento automático                              |
-| `npm test`               | rodar a suíte Vitest                                                   |
-| `npm run check`          | **obrigatório antes de commitar** (tipos + lint + formato + auditoria) |
-| `npm run clean`          | apagar a pasta `out/` (build anterior)                                 |
-| `npm run build`          | compilar main/preload/renderer                                         |
-| `npm run dist`           | gerar o `.deb` em `release/`                                           |
-| `npm run security:audit` | auditoria de vulnerabilidades (OSV Scanner)                            |
+| Comando                   | Quando usar                                                            |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `npm run dev`             | desenvolver com recarregamento automático                              |
+| `npm run dev:inspect`     | depurar o **processo main** (V8 inspector na porta 5858)               |
+| `npm run dev:inspect-brk` | idem, pausando na primeira linha até anexar o depurador                |
+| `npm test`                | rodar a suíte Vitest                                                   |
+| `npm run check`           | **obrigatório antes de commitar** (tipos + lint + formato + auditoria) |
+| `npm run clean`           | apagar a pasta `out/` (build anterior)                                 |
+| `npm run build`           | compilar main/preload/renderer                                         |
+| `npm run dist`            | gerar o `.deb` em `release/`                                           |
+| `npm run security:audit`  | auditoria de vulnerabilidades (OSV Scanner)                            |
+
+Depuração do renderer é pelo F11 (DevTools do Chromium) ou por
+`npx react-devtools` (que traz o Profiler; é global, não vira dependência). O
+DevTools do Chromium **não** alcança o processo main — para isso use
+`dev:inspect`. Detalhes em [`docs/testes.md`](docs/testes.md) § "Depuração".
 
 ## 3. Convenções de código (resumo)
 

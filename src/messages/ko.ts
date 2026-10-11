@@ -303,6 +303,8 @@ export const ko: Messages = {
     confirmAction: '확인',
     irreversible: '이 작업은 되돌릴 수 없습니다.',
     libraryReset: '라이브러리가 삭제되었습니다.',
+    resetPartial: (shredded: number, failed: number): string =>
+      `${shredded}개 파일을 덮어쓰고 삭제했지만 ${failed}개는 삭제하지 못했습니다. 디스크에 잔여물이 남았을 수 있으니 앱을 다시 시작한 뒤 재시도하세요.`,
     vaultDestroyed: '금고가 파괴되었습니다. 계속하려면 새 금고를 만드세요.',
     cloudPurged: '백업이 클라우드에서 삭제되었습니다.',
     libraryLocked: '라이브러리를 삭제하려면 금고를 잠금 해제하세요.',
